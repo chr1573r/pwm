@@ -1,0 +1,215 @@
+#!/bin/bash
+#debug:
+cp pwm $HOME/.pwm/pwm
+cp .pwmrc $HOME/.pwm/.pwmrc
+
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+BLUE=$(tput setaf 4)
+MAGENTA=$(tput setaf 5)
+CYAN=$(tput setaf 6)
+GRAY=$(tput setaf 7)
+DARKGRAY=$(tput setaf 8)
+LRED=$(tput setaf 9)
+LGREEN=$(tput setaf 10)
+LYELLOW=$(tput setaf 11)
+LBLUE=$(tput setaf 12)
+LMAGENTA=$(tput setaf 13)
+LCYAN=$(tput setaf 14)
+WHITE=$(tput setaf 15)
+DEF=$(tput sgr0)
+
+# exec helpers
+exsw(){
+	eval "$@"
+	[[ "$?" -ne 0 ]] && utpw "${CYAN}'$@'${DEF} returned non-zero exitcode"
+}
+
+exsf(){
+	eval "$@"
+	[[ "$?" -ne 0 ]] && utpf "${CYAN}'$@'${DEF} returned non-zero exitcode" && exit
+}
+# /exec helpers
+
+# tty write helpers
+utp(){
+	echo -e "${RED}pwm${DARKGRAY}# ${DEF}$1${DEF}"
+}
+
+
+utpn(){
+	echo -en "${RED}pwm${DARKGRAY}# ${DEF}$1${DEF}"
+}
+
+utpw(){
+	echo -e "${RED}pwm${DARKGRAY}# ${YELLOW}WARN: ${DEF}$1${DEF}"
+}
+
+utpf(){
+	echo -e "${RED}pwm${DARKGRAY}# ${LRED}FATAL: ${DEF}$1${DEF}"
+	exit
+}
+
+ut(){
+	echo -e "$1 $DEF"
+}
+
+utg(){
+	echo -e "${GREEN} OK${DEF}"
+}
+
+utn(){
+	echo -en "$1 $DEF"
+}
+
+# /tty write helpers
+
+# gpg helpers
+enc(){
+	gpg --encrypt --sign --armor -r $RECEPIENT "$1"
+}
+
+dec(){
+	gpg "$1"
+}
+# /gpg helpers
+
+# fs tests
+dver(){
+	[[ -d "$1" ]]
+}
+
+fver(){
+	[[ -f "$1" ]]
+	#echo $?
+}
+
+# /fs tests
+
+# checksum related
+sumbin(){
+	[[ md5bin == "md5sum" ]] &&	echo $(md5sum "$1" | cut -c -32) || echo $(md5 -q "$1")
+}
+
+sumver(){
+	[[ $(sumbin "$1") == $(sumbin "$2") ]] && true || false
+}
+# /checksum related
+
+# fs operations
+sdel(){
+	if hash srm 2>/dev/null; then
+        srm "$1"
+    else
+    	utpw "srm not found, using plain rm for deletion"
+        rm -f "$1"
+    fi
+}
+# /fs operations
+
+pwmain(){
+	cd "$PDIR"
+	case "$1" in
+		open)
+			fver "$2.asc" || utpf "No entry for ${CYAN}'$2'${DEF} found."
+			utp "Decrypting ${YELLOW}'$2'${DEF}..."
+			echo -n "$LBLUE"
+			exsf "dec "$2.asc""
+			fver "$2" || utpf "Plaintext not found!"
+			exsf "$EDITOR "$2""
+			utpn "Deleting plaintext..."
+			exsf "sdel "$2""
+			utg
+
+		;;
+		new)
+			fver "$2.asc" && utpf "Entry ${YELLOW}'$2'${DEF} exists. Please edit or delete."
+			exsf "$EDITOR "$2""
+			fver "$2" || utpf "File not found, forgot to save?"
+			utp "Encrypting ${YELLOW}'$2'${DEF}..."
+			echo -n "$LBLUE"
+			exsf "enc "$2""
+			utp "${GREEN}Encrypted and signed with GPG"
+			utpn "Deleting plaintext..."
+			exsf "sdel "$2""
+			utg
+			fver "$2.asc" || utpf "Encrypted file ${YELLOW}'$2.asc'${DEF} not found"
+			utp "Entry ${YELLOW}'$2'${DEF} stored!"
+		;;
+		edit)
+			fver "$2.asc" || utpf "No entry for ${CYAN}'$2'${DEF} found."
+
+			utp "Creating verified backup of current entry for ${YELLOW}'$2'${DEF}..."
+			cp "$2.asc" "$2.asco"
+			fver "$2.asco" || utpf "Failed to create backup of ${CYAN}'$2'${DEF}."
+			sumver "$2.asc" "$2.asco" || { utp "Verification failed for backup of ${CYAN}'$2'${DEF}, cleaning up and aborting." && sdel "$2.asco" && exit; }
+			
+			utp "Decrypting current ${YELLOW}'$2'${DEF}... ${CYAN}$(sumbin $2.asc)"
+			echo -n "$LBLUE"
+			exsf "dec "$2.asc""
+			ut
+			fver "$2" || utpf "Plaintext not found!"
+
+			cp "$2" "$2_old"
+
+			exsf "$EDITOR "$2""
+
+			if sumver "$2" "$2_old"; then
+				utp "No change detected for ${YELLOW}'$2'${DEF}."
+			else
+				exsf "rm "$2.asc""
+				utp "Encrypting changed ${YELLOW}'$2'${DEF}..."
+				echo -n "$LBLUE"
+				exsf "enc "$2""
+				ut
+				utp "${GREEN}Encrypted and signed with GPG"
+				utp "Keep this new edit of entry ${YELLOW}'$2'${DEF} [Y/n] "
+				read -s -n 1 overwrite
+
+				if [[ "$overwrite" != "n" ]]; then
+					utp "${YELLOW}'$2'${DEF} ${GREEN}updated! ${CYAN}$(sumbin $2.asc)"
+				else
+					utpn "Aborting edit, restoring previous version of ${YELLOW}'$2'${DEF}..."
+					cp $2.asco $2.asc
+					fver "$2.asc" && ut "${GREEN}OK${DEF}: ${CYAN}$(sumbin $2.asc)"
+				fi
+
+				fver "$2.asc" || utpf "Could not find ${YELLOW}'$2.asc'${DEF}. Please investigate. Plaintext ${RED}NOT deleted."
+			fi
+			utpn "Removing backup file..." && sdel "$2.asco"
+			fver "$2.asco" && utpw "Could not obsolete backup ${YELLOW}'$2.asco'${DEF}." || utg
+
+			utpn "Deleting plaintexts..."
+			exsf "sdel "$2""
+			exsf "sdel "$2_old""
+			utg
+		;;
+
+		delete)
+			fver "$2.asc" || utpf "No entry for ${YELLOW}'$2'${DEF} exists."
+			exsf "sdel "$2.asc""
+			fver "$2.asc" && utpf "Could not delete entry ${YELLOW}'$2'${DEF}." 
+			fver "$2.asc" || utp "${YELLOW}'$2'${DEF} erased."
+		;;
+
+		list)
+			utp "Following entries are available:"
+			for pw in *; do
+				utp "$DARKGRAY> $YELLOW$(basename "$pw" | awk '{print substr($0, 0, length($0)-4)}' -)"
+				((listc++))
+				[[ "$listc" -gt "$(tput lines)" ]] && tput sc && utn ":" && read -n 1 > /dev/null && tput rc && tput el
+			done
+		;;
+	esac
+}
+# Prerequistes
+hash md5 2>/dev/null && md5bin="md5"
+hash md5sum 2>/dev/null && md5bin="md5sum"
+[[ -z "$md5bin" ]] && utpf "md5/md5sum not found, please install."
+
+hash gpg 2>/dev/null || utpf "GPG binary not found, please install."
+fver "$HOME/.pwm/.pwmrc" || utpf "Can't find ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}, please create." && source "$HOME/.pwm/.pwmrc"
+dver "$PDIR" || utpf "Password dir ${CYAN}'$PDIR'${DEF} not found"
+
+pwmain "$@"
