@@ -1,10 +1,12 @@
 #!/bin/bash
 #debug:
 #cp pwm $HOME/.pwm/pwm
-#cp .pwmrc $HOME/.pwm/.pwmrc
+#cp .pwmrc $PWMRC
 
 # init
 pwinit(){
+
+PWMRC="$HOME/.pwm/.pwmrc"
 
 #term colors
 RED=$(tput setaf 1)
@@ -31,13 +33,13 @@ hash md5sum 2>/dev/null && md5bin="md5sum"
 hash gpg 2>/dev/null || utpf "GPG binary not found, please install."
 
 # cfg check
-if ! fver "$HOME/.pwm/.pwmrc"; then
-	utpw "Can't find ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}."
+if ! fver "$PWMRC"; then
+	utpw "Can't find ${CYAN}'$PWMRC'${DEF}."
 	utpnc "Do you want to initiate the ${CYAN}setup wizard${DEF}? [Y/n] "
 	read -n 1 setup
-	[[ "$setup" != "n" ]] && setupwm
+	[[ "$setup" != [nN] ]] && setupwm
 fi
-fver "$HOME/.pwm/.pwmrc" || utpf "Can't load ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}, please create." && source "$HOME/.pwm/.pwmrc"
+fver "$PWMRC" || utpf "Can't load ${CYAN}'$PWMRC'${DEF}, please create." && source "$PWMRC"
 
 #pw storage check
 dver "$PDIR" || utpf "Password dir ${CYAN}'$PDIR'${DEF} not found"
@@ -101,19 +103,17 @@ setupwm(){
 
 			unset complete
 			[[ "$srepo" == "Y" ]] && srepo="enabled" || srepo="disabled"
-			sconfirm="y"
 			while [[ -z "$complete" ]]; do
-				utp "PWM is ready to write the following to ${CYAN}$HOME/.pwm/.pwmrc"
+				utp "PWM is ready to write the following to ${CYAN}$PWMRC"
 				echo -e "${YELLOW}RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\""
 				utpnc "Save settings to file? [Y/n] "
-				read -n 1 sconfirm 
-				if [[ "$sconfirm" == [yY] ]]; then
+				read -n 1 sconfirm
+				if [[ "$sconfirm" != [nN] ]]; then
 					utpn "Writing and verifying configuration..."
-					exsf "touch "$HOME/.pwm/.pwmrc""
-					echo "### PWM configuration ###" > "$HOME/.pwm/.pwmrc"
-					fver "$HOME/.pwm/.pwmrc" || utpf "Could not write to ${CYAN}$HOME/.pwm/.pwmrc${DEF}. Please check."
-					echo -e "RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\"" >> "$HOME/.pwm/.pwmrc"
-					source "$HOME/.pwm/.pwmrc"
+					echo "### PWM configuration ###" > "$PWMRC"
+					fver "$PWMRC" || utpf "Could not write to ${CYAN}$PWMRC${DEF}. Please check."
+					echo -e "RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\"" >> "$PWMRC"
+					source "$PWMRC"
 					[[ "$RECEPIENT" == "$srecepient" ]] || utpf "Failed to verify config from .pwmrc (RECEPIENT)"
 					[[ "$EDITOR" == "$seditor" ]] || utpf "Failed to verify config from .pwmrc (EDITOR)"
 					[[ "$REPOSYNC" == "$srepo" ]] || utpf "Failed to verify config from .pwmrc (REPOSYNC)"
@@ -231,7 +231,6 @@ pwmain(){
 			utpn "Deleting plaintext..."
 			exsf "sdel "$2""
 			utg
-
 		;;
 		new)
 			fver "$2.asc" && utpf "Entry ${YELLOW}'$2'${DEF} exists. Please edit or delete."
