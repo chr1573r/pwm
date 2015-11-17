@@ -7,6 +7,7 @@
 pwinit(){
 
 PWMRC="$HOME/.pwm/.pwmrc"
+SELFPATH=$( cd $(dirname $0) ; pwd -P )
 
 #term colors
 RED=$(tput setaf 1)
@@ -51,10 +52,36 @@ setupwm(){
 			utp
 			utp "### PWM SETUP ###"
 
+			if  ! hash pwm 2>/dev/null && ! fver "/usr/bin/pwm"; then
+				utpnc "Do you wish to copy pwm to /usr/bin/pwm? (might require sudo.) [Y/n]"
+				read -n 1 pwmcopy
+				[[ -z "$pwmcopy" ]] || echo
+				if [[ "$pwmcopy" != [nN] ]]; then
+					if touch /usr/bin/pwm; then
+						cat SELFPATH > /usr/bin/pwm
+						chmod +x /usr/bin/pwm
+						utp "Installed to /usr/bin/pwm."
+					else
+						if ! hash sudo; then
+							utpw "Could not install. Permission denied and sudo not installed"
+						else
+							utp "No permission, attempting with sudo:"
+							if sudo touch /usr/bin/pwm; then
+								sudo cp -f $SELFPATH/pwm /usr/bin/pwm
+								sudo chmod +x /usr/bin/pwm
+								utp "Installed to /usr/bin/pwm."
+							else
+								utpw "Could not install. Permission denied."
+							fi
+						fi
+					fi
+				fi
+			fi
+
 			unset complete
 			while [[ -z "$complete" ]]; do
 				utpnc "Which editor will be used for viewing/editing passwords? [Def: nano]: "
-				read seditor && [[ -z "$seditor" ]] && seditor="nano"
+				read seditor && [[ -z "$seditor" ]] && echo && seditor="nano"
 				if hash "$seditor" 2>/dev/null; then
 					complete=true
 				else
@@ -108,6 +135,7 @@ setupwm(){
 				echo -e "${YELLOW}RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\""
 				utpnc "Save settings to file? [Y/n] "
 				read -n 1 sconfirm
+				[[ -z "$sconfirm" ]] || echo
 				if [[ "$sconfirm" != [nN] ]]; then
 					utpn "Writing and verifying configuration..."
 					echo "### PWM configuration ###" > "$PWMRC"
