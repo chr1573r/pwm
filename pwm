@@ -1,8 +1,12 @@
 #!/bin/bash
 #debug:
-cp pwm $HOME/.pwm/pwm
-cp .pwmrc $HOME/.pwm/.pwmrc
+#cp pwm $HOME/.pwm/pwm
+#cp .pwmrc $HOME/.pwm/.pwmrc
 
+# init
+pwinit(){
+
+#term colors
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 YELLOW=$(tput setaf 3)
@@ -19,6 +23,107 @@ LMAGENTA=$(tput setaf 13)
 LCYAN=$(tput setaf 14)
 WHITE=$(tput setaf 15)
 DEF=$(tput sgr0)
+
+# Binaries check
+hash md5 2>/dev/null && md5bin="md5"
+hash md5sum 2>/dev/null && md5bin="md5sum"
+[[ -z "$md5bin" ]] && utpf "md5/md5sum binary not found, please install."
+hash gpg 2>/dev/null || utpf "GPG binary not found, please install."
+
+# cfg check
+if ! fver "$HOME/.pwm/.pwmrc"; then
+	utpw "Can't find ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}."
+	utpnc "Do you want to initiate the ${CYAN}setup wizard${DEF}? [Y/n] "
+	read -n 1 setup
+	[[ "$setup" != "n" ]] && setupwm
+fi
+fver "$HOME/.pwm/.pwmrc" || utpf "Can't load ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}, please create." && source "$HOME/.pwm/.pwmrc"
+
+#pw storage check
+dver "$PDIR" || utpf "Password dir ${CYAN}'$PDIR'${DEF} not found"
+}
+# /init
+
+# pwm setup
+setupwm(){
+			utp
+			utp "### PWM SETUP ###"
+
+			unset complete
+			while [[ -z "$complete" ]]; do
+				utpnc "Which editor will be used for viewing/editing passwords? [Def: nano]: "
+				read seditor && [[ -z "$seditor" ]] && seditor="nano"
+				if hash "$seditor" 2>/dev/null; then
+					complete=true
+				else
+					utpw "$seditor binary not found, please select a valid editor."
+				fi
+			done
+
+			unset complete
+			while [[ -z "$complete" ]]; do
+				utpnc "What recipient will be used for GPG encryption? (Must be present in GPG keychain): "
+				read srecepient && 
+				if [[ -z "$srecepient" ]];then
+					utpw "Recipient can not be empty."
+				else
+					echo -n "$LBLUE"
+					gpg --list-keys $srecepient && complete=true || utpw "Could not find identity in GPG keychain."
+				fi
+			done
+
+			unset complete
+			while [[ -z "$complete" ]]; do
+				utpnc "Where do you want to store passwords? [Def: $HOME/.pwm/pw]: "
+				read spdir && [[ -z "$spdir" ]] && spdir="$HOME/.pwm/pw"
+				exsw "mkdir -p "$spdir""
+				dver "$spdir" && complete=true || utpw "Directory not valid."
+			done
+
+			unset complete
+			cd "$spdir"
+			while [[ -z "$complete" ]]; do
+				srepo=n
+				
+				if [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then
+					utp "Password directory seems to reside within a git repo."
+					utp "pwm can push/pull to master branch, so that your encryped passwords are stored in the repo"
+					utp "Enable this only if you know the implications/risks involved."
+					utpnc "Do you want to enable git sync? [y/N] "
+					read -n 1 srepo
+					[[ "$srepo" == [yY] ]] && srepo="Y" && utp "Repo sync will be ${CYAN}enabled" || srepo="N" && utp "Repo sync will be ${CYAN}disabled"
+					complete=true
+				else
+					utp "Could not detect git in pw dir, skipping repo step. (reposync can be enabled manually in .pwmrc)"
+					complete=true
+				fi
+			done
+
+			unset complete
+			[[ "$srepo" == "Y" ]] && srepo="enabled" || srepo="disabled"
+			sconfirm="y"
+			while [[ -z "$complete" ]]; do
+				utp "PWM is ready to write the following to ${CYAN}$HOME/.pwm/.pwmrc"
+				echo -e "${YELLOW}RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\""
+				utpnc "Save settings to file? [Y/n] "
+				read -n 1 sconfirm 
+				if [[ "$sconfirm" == [yY] ]]; then
+					utpn "Writing and verifying configuration..."
+					echo "### PWM configuration ###" > "$HOME/.pwm/.pwmrc"
+					fver "$HOME/.pwm/.pwmrc" || utpf "Could not write to ${CYAN}$HOME/.pwm/.pwmrc${DEF}. Please check."
+					echo -e "RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\"" >> "$HOME/.pwm/.pwmrc"
+					source "$HOME/.pwm/.pwmrc"
+					[[ "$RECEPIENT" == "$srecepient" ]] || utpf "Failed to verify config from .pwmrc (RECEPIENT)"
+					[[ "$EDITOR" == "$seditor" ]] || utpf "Failed to verify config from .pwmrc (EDITOR)"
+					[[ "$REPOSYNC" == "$srepo" ]] || utpf "Failed to verify config from .pwmrc (REPOSYNC)"
+					[[ "$PDIR" == "$spdir" ]] || utpf "Failed to verify config from .pwmrc (PDIR)"
+					utg
+				fi
+				complete=true
+			done
+}
+
+# /pwm setup
 
 # exec helpers
 exsw(){
@@ -40,6 +145,10 @@ utp(){
 
 utpn(){
 	echo -en "${RED}pwm${DARKGRAY}# ${DEF}$1${DEF}"
+}
+
+utpnc(){
+	echo -en "${RED}pwm${DARKGRAY}# ${DEF}$1${LYELLOW}"
 }
 
 utpw(){
@@ -201,15 +310,12 @@ pwmain(){
 				[[ "$listc" -gt "$(tput lines)" ]] && tput sc && utn ":" && read -n 1 > /dev/null && tput rc && tput el
 			done
 		;;
+
+		setup)
+			setupwm
+		;;
 	esac
 }
-# Prerequistes
-hash md5 2>/dev/null && md5bin="md5"
-hash md5sum 2>/dev/null && md5bin="md5sum"
-[[ -z "$md5bin" ]] && utpf "md5/md5sum not found, please install."
 
-hash gpg 2>/dev/null || utpf "GPG binary not found, please install."
-fver "$HOME/.pwm/.pwmrc" || utpf "Can't find ${CYAN}'$HOME/.pwm/.pwmrc'${DEF}, please create." && source "$HOME/.pwm/.pwmrc"
-dver "$PDIR" || utpf "Password dir ${CYAN}'$PDIR'${DEF} not found"
-
+pwinit
 pwmain "$@"
