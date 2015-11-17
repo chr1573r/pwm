@@ -109,6 +109,7 @@ setupwm(){
 				read -n 1 sconfirm 
 				if [[ "$sconfirm" == [yY] ]]; then
 					utpn "Writing and verifying configuration..."
+					exsf "touch "$HOME/.pwm/.pwmrc""
 					echo "### PWM configuration ###" > "$HOME/.pwm/.pwmrc"
 					fver "$HOME/.pwm/.pwmrc" || utpf "Could not write to ${CYAN}$HOME/.pwm/.pwmrc${DEF}. Please check."
 					echo -e "RECEPIENT=\"$srecepient\"\nEDITOR=\"$seditor\"\nREPOSYNC=\"$srepo\"\nPDIR=\"$spdir\"" >> "$HOME/.pwm/.pwmrc"
