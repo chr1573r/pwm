@@ -7,6 +7,7 @@
 pwinit(){
 
 PWMRC="$HOME/.pwm/.pwmrc"
+PWM_INSTALL_PATH="/usr/local/bin/pwm"
 SELFPATH=$( cd $(dirname $0) ; pwd -P )
 
 #term colors
@@ -52,24 +53,24 @@ setupwm(){
 			utp
 			utp "### PWM SETUP ###"
 
-			if  ! hash pwm 2>/dev/null && ! fver "/usr/bin/pwm"; then
-				utpnc "Do you wish to copy pwm to /usr/bin/pwm? (might require sudo.) [Y/n]"
+			if  ! hash pwm 2>/dev/null && ! fver "$PWM_INSTALL_PATH"; then
+				utpnc "Do you wish to copy pwm to \"$PWM_INSTALL_PATH\"? (might require sudo.) [Y/n]"
 				read -n 1 pwmcopy
 				[[ -z "$pwmcopy" ]] || echo
 				if [[ "$pwmcopy" != [nN] ]]; then
-					if touch /usr/bin/pwm; then
-						cat SELFPATH > /usr/bin/pwm
-						chmod +x /usr/bin/pwm
-						utp "Installed to /usr/bin/pwm."
+					if touch "$PWM_INSTALL_PATH"; then
+						cat SELFPATH > "$PWM_INSTALL_PATH"
+						chmod +x "$PWM_INSTALL_PATH"
+						utp "Installed to \"$PWM_INSTALL_PATH\"."
 					else
 						if ! hash sudo; then
 							utpw "Could not install. Permission denied and sudo not installed"
 						else
 							utp "No permission, attempting with sudo:"
-							if sudo touch /usr/bin/pwm; then
-								sudo cp -f $SELFPATH/pwm /usr/bin/pwm
-								sudo chmod +x /usr/bin/pwm
-								utp "Installed to /usr/bin/pwm."
+							if sudo touch "$PWM_INSTALL_PATH"; then
+								sudo cp -f $SELFPATH/pwm "$PWM_INSTALL_PATH"
+								sudo chmod +x "$PWM_INSTALL_PATH"
+								utp "Installed to \"$PWM_INSTALL_PATH\"."
 							else
 								utpw "Could not install. Permission denied."
 							fi
@@ -92,7 +93,7 @@ setupwm(){
 			unset complete
 			while [[ -z "$complete" ]]; do
 				utpnc "What recipient will be used for GPG encryption? (Must be present in GPG keychain): "
-				read srecepient && 
+				read srecepient &&
 				if [[ -z "$srecepient" ]];then
 					utpw "Recipient can not be empty."
 				else
@@ -113,7 +114,7 @@ setupwm(){
 			cd "$spdir"
 			while [[ -z "$complete" ]]; do
 				srepo=n
-				
+
 				if [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then
 					utp "Password directory seems to reside within a git repo."
 					utp "pwm can push/pull to master branch, so that your encryped passwords are stored in the repo"
@@ -281,7 +282,7 @@ pwmain(){
 			cp "$2.asc" "$2.asco"
 			fver "$2.asco" || utpf "Failed to create backup of ${CYAN}'$2'${DEF}."
 			sumver "$2.asc" "$2.asco" || { utp "Verification failed for backup of ${CYAN}'$2'${DEF}, cleaning up and aborting." && sdel "$2.asco" && exit; }
-			
+
 			utp "Decrypting current ${YELLOW}'$2'${DEF}... ${CYAN}$(sumbin $2.asc)"
 			echo -n "$LBLUE"
 			exsf "dec "$2.asc""
@@ -326,7 +327,7 @@ pwmain(){
 		delete)
 			fver "$2.asc" || utpf "No entry for ${YELLOW}'$2'${DEF} exists."
 			exsf "sdel "$2.asc""
-			fver "$2.asc" && utpf "Could not delete entry ${YELLOW}'$2'${DEF}." 
+			fver "$2.asc" && utpf "Could not delete entry ${YELLOW}'$2'${DEF}."
 			fver "$2.asc" || utp "${YELLOW}'$2'${DEF} erased."
 		;;
 
